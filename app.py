@@ -1,56 +1,58 @@
-# app.py
-
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 import joblib
-import pandas as pd
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
+import datetime
 
 app = Flask(__name__)
 
 # Load pre-trained models
-max_t_model = joblib.load('max_t_model.joblib')
-min_t_model = joblib.load('min_t_model.joblib')
+model_max = joblib.load('model_max.joblib')
+model_min = joblib.load('model_min.joblib')
 
-# Define the transformer for one-hot encoding 'Weather_Condition'
-preprocessor = ColumnTransformer(
-    transformers=[
-        ('weather', OneHotEncoder(), ['Weather_Condition'])
-    ],
-    remainder='passthrough'
-)
-
-# Combine the preprocessor with the model in a pipeline
-max_t_model = Pipeline([
-    ('preprocessor', preprocessor),
-    ('regressor', max_t_model)
-])
-
-min_t_model = Pipeline([
-    ('preprocessor', preprocessor),
-    ('regressor', min_t_model)
-])
+def generate_dates(start_date, num_days):
+    date_list = [start_date + datetime.timedelta(days=x) for x in range(num_days)]
+    return [date.strftime('%Y-%m-%d') for date in date_list]
 
 @app.route('/predict/max_t', methods=['POST'])
-def predict_max_t():
+def predict_max_temperature():
     data = request.get_json()
-    features = pd.DataFrame(data['features'])
-    
-    # Use the pre-trained max_t_model for prediction
-    prediction = max_t_model.predict(features)
-    
-    return jsonify({"prediction": prediction.tolist()})
+    num_days = data['num_days']
+
+    # Example: Extract features for prediction based on 'num_days'
+    X_input_max = [[data['Humidity'], data['Wind_Speed']] for _ in range(num_days)]
+
+    # Make predictions using the pre-trained model
+    predictions_max = model_max.predict(X_input_max)
+
+    # Generate date list
+    start_date = datetime.datetime.now().date()
+    date_list = generate_dates(start_date, num_days)
+
+    response = {
+        "predictions": [{"date": date, "max_temperature": float(temp)} for date, temp in zip(date_list, predictions_max)]
+    }
+
+    return jsonify(response)
 
 @app.route('/predict/min_t', methods=['POST'])
-def predict_min_t():
+def predict_min_temperature():
     data = request.get_json()
-    features = pd.DataFrame(data['features'])
-    
-    # Use the pre-trained min_t_model for prediction
-    prediction = min_t_model.predict(features)
-    
-    return jsonify({"prediction": prediction.tolist()})
+    num_days = data['num_days']
+
+    # Example: Extract features for prediction based on 'num_days'
+    X_input_min = [[data['Humidity'], data['Wind_Speed']] for _ in range(num_days)]
+
+    # Make predictions using the pre-trained model
+    predictions_min = model_min.predict(X_input_min)
+
+    # Generate date list
+    start_date = datetime.datetime.now().date()
+    date_list = generate_dates(start_date, num_days)
+
+    response = {
+        "predictions": [{"date": date, "min_temperature": float(temp)} for date, temp in zip(date_list, predictions_min)]
+    }
+
+    return jsonify(response)
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=True, host='0.0.0.0', port=5000)
